@@ -25,3 +25,12 @@ test.describe('Home Page', () => {
     await expect(page.getByText('Find your next game! And maybe even back one! Explore our collection!')).toBeVisible();
   });
 });
+
+test.describe('Game card ratings', () => {
+  test('should show each rated game as a number out of 5', async ({ page }) => {
+    await page.goto('/');
+    const ratings = page.getByTestId('game-card-rating');
+    await expect(ratings.first()).toHaveText(/^\d\.\d \/ 5$|^No rating yet$/);
+    await expect(ratings).toHaveCount(await page.getByTestId('game-card').count());
+  });
+});
