@@ -6,6 +6,9 @@ import {
     getAllGames,
     getAllGameIds,
     getGameById,
+    getGames,
+    getAllCategories,
+    getAllPublishers,
 } from './games';
 
 async function seedGames(db: Database, count: number): Promise<void> {
@@ -62,5 +65,80 @@ describe('games data-access helpers', () => {
     it('returns null for a non-existent game', async () => {
         await seedGames(db, 2);
         expect(await getGameById(db, 99999)).toBeNull();
+    });
+
+    describe('filtering', () => {
+        /** Ids of the seeded categories and publishers, keyed by name. */
+        interface Fixture {
+            categoryIds: Record<string, number>;
+            publisherIds: Record<string, number>;
+        }
+
+        /** Seeds three categories, two publishers and four games (A-D) for the filter tests. */
+        async function seedFilterFixture(): Promise<Fixture> {
+            const cats = await db
+                .insert(categories)
+                .values([{ name: 'Strategy' }, { name: 'Puzzle' }, { name: 'Action' }])
+                .returning({ id: categories.id, name: categories.name });
+            const pubs = await db
+                .insert(publishers)
+                .values([{ name: 'Zeta Studios' }, { name: 'Alpha Games' }])
+                .returning({ id: publishers.id, name: publishers.name });
+            const c = Object.fromEntries(cats.map((x) => [x.name, x.id]));
+            const p = Object.fromEntries(pubs.map((x) => [x.name, x.id]));
+            await db.insert(games).values([
+                { title: 'A', description: 'd', categoryId: c.Strategy, publisherId: p['Alpha Games'] },
+                { title: 'B', description: 'd', categoryId: c.Puzzle, publisherId: p['Alpha Games'] },
+                { title: 'C', description: 'd', categoryId: c.Strategy, publisherId: p['Zeta Studios'] },
+                { title: 'D', description: 'd', categoryId: c.Action, publisherId: p['Zeta Studios'] },
+            ]);
+            return { categoryIds: c, publisherIds: p };
+        }
+
+        /** Extracts the titles from a list of games. */
+        const titles = (list: { title: string }[]): string[] => list.map((g) => g.title);
+
+        it('returns all games when no filters are given', async () => {
+            await seedFilterFixture();
+            expect(titles(await getGames(db))).toEqual(['A', 'B', 'C', 'D']);
+            expect(titles(await getGames(db, { categoryIds: [], publisherIds: [] }))).toEqual(['A', 'B', 'C', 'D']);
+        });
+
+        it('filters by one or more categories', async () => {
+            const f = await seedFilterFixture();
+            expect(titles(await getGames(db, { categoryIds: [f.categoryIds.Strategy] }))).toEqual(['A', 'C']);
+            expect(
+                titles(await getGames(db, { categoryIds: [f.categoryIds.Puzzle, f.categoryIds.Action] })),
+            ).toEqual(['B', 'D']);
+        });
+
+        it('filters by publisher', async () => {
+            const f = await seedFilterFixture();
+            expect(titles(await getGames(db, { publisherIds: [f.publisherIds['Zeta Studios']] }))).toEqual(['C', 'D']);
+        });
+
+        it('combines category and publisher filters', async () => {
+            const f = await seedFilterFixture();
+            const result = await getGames(db, {
+                categoryIds: [f.categoryIds.Strategy],
+                publisherIds: [f.publisherIds['Zeta Studios']],
+            });
+            expect(titles(result)).toEqual(['C']);
+        });
+
+        it('returns an empty list when nothing matches', async () => {
+            const f = await seedFilterFixture();
+            const result = await getGames(db, {
+                categoryIds: [f.categoryIds.Puzzle],
+                publisherIds: [f.publisherIds['Zeta Studios']],
+            });
+            expect(result).toEqual([]);
+        });
+
+        it('lists categories and publishers ordered by name', async () => {
+            await seedFilterFixture();
+            expect((await getAllCategories(db)).map((c) => c.name)).toEqual(['Action', 'Puzzle', 'Strategy']);
+            expect((await getAllPublishers(db)).map((p) => p.name)).toEqual(['Alpha Games', 'Zeta Studios']);
+        });
     });
 });

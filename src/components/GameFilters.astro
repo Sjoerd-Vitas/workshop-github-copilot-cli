@@ -1,0 +1,57 @@
+---
+import type { Category, Publisher } from '../types/game';
+
+/** Props for the home page category and publisher filters. */
+interface Props {
+    /** Categories offered as filter options. */
+    categories: Category[];
+    /** Publishers offered as filter options. */
+    publishers: Publisher[];
+}
+
+const { categories, publishers } = Astro.props;
+
+const groups = [
+    { key: 'category', label: 'Category', options: categories },
+    { key: 'publisher', label: 'Publisher', options: publishers },
+] as const;
+---
+
+<form
+    class="mb-8 bg-slate-800/60 rounded-xl border border-slate-700/50 p-6"
+    data-testid="game-filters"
+    aria-label="Filter games"
+>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {groups.map((group) => (
+            <fieldset data-testid={`filter-group-${group.key}`}>
+                <legend class="text-sm font-semibold text-slate-100 mb-3">{group.label}</legend>
+                <div class="flex flex-wrap gap-2">
+                    {group.options.map((option) => (
+                        <label class="has-[:checked]:bg-blue-600 has-[:checked]:text-white has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-500 inline-flex items-center gap-2 cursor-pointer rounded-full bg-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-600 transition-colors">
+                            <input
+                                type="checkbox"
+                                class="sr-only"
+                                name={group.key}
+                                value={option.id}
+                                data-testid={`filter-${group.key}-${option.id}`}
+                            />
+                            <span>{option.name}</span>
+                        </label>
+                    ))}
+                </div>
+            </fieldset>
+        ))}
+    </div>
+
+    <div class="mt-6 flex items-center justify-between gap-4">
+        <p class="text-sm text-slate-300" role="status" aria-live="polite" data-testid="filter-count"></p>
+        <button
+            type="button"
+            class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+            data-testid="filter-clear"
+        >
+            Clear filters
+        </button>
+    </div>
+</form>
